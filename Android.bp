@@ -1,0 +1,28 @@
+cc_defaults {
+    name: "fluoride_vvnx_defaults",
+    defaults: ["fluoride_defaults"],
+    include_dirs: [
+        "system/bt",
+        "system/bt/include",
+        "system/bt/osi/src/protos",
+        "system/bt/utils/include",
+        "system/bt/stack/include",
+    ]
+}
+
+
+cc_binary {
+    name: "bt_vvnx",
+    defaults: ["fluoride_vvnx_defaults"],
+    srcs: [
+        "main.cc",
+    ],
+    shared_libs: [
+        "libutils",             
+        "libhardware",
+    ],
+    static_libs: [
+        "libbtcore", 
+    ],    
+    
+}
