@@ -1,6 +1,9 @@
 /**
  * piste: system/bt/hal/bluetooth_interface.cc (suivi notre ami bluetoothtbd->main->daemon.cc->bluetooth_interface.cc)
  * 
+ * build: mettre dans un dir dans system/bt que tu ajoutes à Android.bp->subdirs
+ * 
+adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
  * 
  * hardware/libhardware/include/hardware/bluetooth.h
  * 
@@ -16,6 +19,10 @@
 
 #include <hardware/bluetooth.h>
 #include <hardware/hardware.h>
+
+//external/libchrome/base/
+#include <base/message_loop/message_loop.h>
+#include <base/run_loop.h>
 
 void AdapterStateChangedCallback(bt_state_t state) {
   printf("VVNX Adapter state changed");
@@ -55,6 +62,8 @@ int main(){
 	// The HAL handle that represents the underlying Bluetooth adapter. (idem weak ref... que ci dessus)
 	const bluetooth_device_t* hal_adapter_;
 	
+	base::MessageLoop main_loop;
+	
 	
 	printf("Début de main\n");
 	
@@ -82,17 +91,15 @@ int main(){
     if (status != BT_STATUS_SUCCESS) {
       printf("Failed to initialize Bluetooth stack");
       return 1;
-    }
+    }    
     
-    sleep(10);
-    
-    status = hal_iface_->enable(false);
+    status = hal_iface_->enable(true); //avec false s'arrête rapidos...
         if (status != BT_STATUS_SUCCESS) {
       printf("Failed to enable");
 
     }
 	
-	sleep(60);
+	main_loop.Run();
 	
 	return 0;
 }
