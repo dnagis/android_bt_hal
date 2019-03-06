@@ -19,6 +19,8 @@ adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
 
 #include <hardware/bluetooth.h>
 #include <hardware/hardware.h>
+#include <hardware/bt_gatt.h>
+#include <hardware/ble_scanner.h>
 
 //external/libchrome/base/
 #include <base/message_loop/message_loop.h>
@@ -98,6 +100,14 @@ int main(){
       printf("Failed to enable");
 
     }
+    
+    
+    const btgatt_interface_t* gatt_iface = reinterpret_cast<const btgatt_interface_t*>(hal_iface_->get_profile_interface(BT_PROFILE_GATT_ID));    
+    BleScannerInterface* ble_iface = gatt_iface->scanner;
+    ble_iface->Scan(true);
+    
+    
+    
 	
 	main_loop.Run();
 	
