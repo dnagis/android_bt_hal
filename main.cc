@@ -3,6 +3,9 @@
  * 
  * build: mettre dans un dir dans system/bt que tu ajoutes à Android.bp->subdirs
  * 
+ * 
+ * /etc/bluetooth/bt_stack.conf gère le log, par élément/librairie (btif, stack, ... u name it)
+ * 
 adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
  * 
  * hardware/libhardware/include/hardware/bluetooth.h
@@ -27,6 +30,7 @@ adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
 #include <base/run_loop.h>
 #include <base/callback.h>
 #include <base/logging.h>
+#include "base/bind.h"
 
 
 
@@ -45,42 +49,69 @@ void ThreadEventCallback(bt_cb_thread_evt evt) {
 // The HAL Bluetooth DM callbacks.
 bt_callbacks_t bt_callbacks = {
     sizeof(bt_callbacks_t),
-    AdapterStateChangedCallback,
+    &AdapterStateChangedCallback,
     nullptr,
     nullptr,
-    device_found_cb, /* device_found_cb */
+    &device_found_cb, /* device_found_cb */
     nullptr,
     nullptr,
     nullptr,
     nullptr,
     nullptr,
-    ThreadEventCallback,
+    &ThreadEventCallback,
     nullptr, /* dut_mode_recv_cb */
     nullptr, /* le_test_mode_cb */
     nullptr  /* energy_info_cb */
 };
 
+void scan_result_cb(uint16_t event_type, uint8_t addr_type,
+					 RawAddress *bda, uint8_t primary_phy,
+					 uint8_t secondary_phy,
+					 uint8_t advertising_sid, int8_t tx_power,
+					 int8_t rssi, uint16_t periodic_adv_int,
+					 std::vector<uint8_t> adv_data) {	
+		printf("VVNX scan result callback \n");		
+}
 
+//hardware/ble_scanner.h
+btgatt_scanner_callbacks_t btgatt_scanner_callbacks = {
+	&scan_result_cb,
+    nullptr,
+    nullptr,
+    nullptr	
+};
+
+//hardware/bt_gatt.h
 btgatt_callbacks_t bt_gatt_callbacks = {
 	sizeof(btgatt_callbacks_t),
 	nullptr,
     nullptr,
-    nullptr,
+    &btgatt_scanner_callbacks
 };
 
 
+
+/**void ma_cb(uint8_t scanner_id, uint8_t status) {
+	printf("%i %i\n", scanner_id, status);
+}**/
+
+/**class registerCallback_vvnx : public base::Callback<void(uint8_t , uint8_t )> {
+	
+	public:
+	 printf("callback maison");
+	
+};
+**/
+
 /**
-void ma_cb(uint8_t scanner_id, uint8_t status) {
-	printf("%i %i", scanner_id, status);
-}
-
-
 class BleScannerIfaceVvnx : public BleScannerInterface {
 	public:		
 
 };**/
 
 
+//un grand merci à https://www.chromium.org/chromium-os/packages/libchromeos
+base::Callback<void(uint8_t, uint8_t)> registerCallback_vvnx = base::Bind([](uint8_t a, uint8_t b) { printf("hello %i %i\n",a, b);});
 
 
 int main(){
@@ -142,21 +173,25 @@ int main(){
       return 1;
     } 
     
-	/** sleep(5);
+	sleep(5);
     
-     avec /etc/bluetooth/bt_stack.conf -> TRC_BTIF=5 me montre des choses
+    /** avec /etc/bluetooth/bt_stack.conf -> TRC_BTIF=5 me montre des choses
     status = hal_iface_->start_discovery();
     if (status != BT_STATUS_SUCCESS) {
       LOG(INFO) << "Failed to start_discovery";
       return 1;
     }**/
     
-    //BleScannerIface* ble_iface = reinterpret_cast<BleScannerIface*>(gatt_iface->scanner);
-    //ble_iface->Scan(true);
-    //ble_iface->RegisterScanner(BleScannerInterface::RegisterCallback);
+    BleScannerInterface* ble_iface = reinterpret_cast<BleScannerInterface*>(gatt_iface->scanner);
+    ble_iface->RegisterScanner(registerCallback_vvnx);
+    ble_iface->Scan(true);
     
+    
+    //ble_iface->RegisterScanner(BleScannerInterface::RegisterCallback);    
     //BleScannerIfaceVvnx ble_iface = reinterpret_cast<BleScannerIfaceVvnx>(gatt_iface->scanner);
     //ble_iface::RegisterCallback = reinterpret_cast<Callback>(ma_cb);
+    
+    
     
 	
 	main_loop.Run();
