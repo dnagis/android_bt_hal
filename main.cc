@@ -69,8 +69,9 @@ void scan_result_cb(uint16_t event_type, uint8_t addr_type,
 					 uint8_t secondary_phy,
 					 uint8_t advertising_sid, int8_t tx_power,
 					 int8_t rssi, uint16_t periodic_adv_int,
-					 std::vector<uint8_t> adv_data) {	
-		printf("VVNX scan result callback \n");		
+					 std::vector<uint8_t> adv_data) {
+		std::string addrstr = bda->ToString();				 	
+		printf("VVNX scan result cb bdaddr=%s \n", addrstr.c_str());		
 }
 
 //hardware/ble_scanner.h
@@ -89,25 +90,6 @@ btgatt_callbacks_t bt_gatt_callbacks = {
     &btgatt_scanner_callbacks
 };
 
-
-
-/**void ma_cb(uint8_t scanner_id, uint8_t status) {
-	printf("%i %i\n", scanner_id, status);
-}**/
-
-/**class registerCallback_vvnx : public base::Callback<void(uint8_t , uint8_t )> {
-	
-	public:
-	 printf("callback maison");
-	
-};
-**/
-
-/**
-class BleScannerIfaceVvnx : public BleScannerInterface {
-	public:		
-
-};**/
 
 
 //un grand merci à https://www.chromium.org/chromium-os/packages/libchromeos
@@ -162,7 +144,7 @@ int main(){
 
     }
     
-    sleep(5);
+    //sleep(5);
     
     //btgatt_interface_t défini dans hardware/bt_gatt.h
     const btgatt_interface_t* gatt_iface = reinterpret_cast<const btgatt_interface_t*>(hal_iface_->get_profile_interface(BT_PROFILE_GATT_ID));  
@@ -173,9 +155,9 @@ int main(){
       return 1;
     } 
     
-	sleep(5);
+	sleep(1); //obligatoire (faut laisser le temps au hardware de s'allumerr?)
     
-    /** avec /etc/bluetooth/bt_stack.conf -> TRC_BTIF=5 me montre des choses
+    /** scan des devices standard. avec /etc/bluetooth/bt_stack.conf -> TRC_BTIF=5 j'ai du logcat touffu
     status = hal_iface_->start_discovery();
     if (status != BT_STATUS_SUCCESS) {
       LOG(INFO) << "Failed to start_discovery";
