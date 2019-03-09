@@ -20,6 +20,7 @@ adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
 
 #include "btcore/include/hal_util.h"
 
+
 #include <hardware/bluetooth.h>
 #include <hardware/hardware.h>
 #include <hardware/bt_gatt.h>
@@ -93,7 +94,13 @@ btgatt_callbacks_t bt_gatt_callbacks = {
 
 
 //un grand merci à https://www.chromium.org/chromium-os/packages/libchromeos
-base::Callback<void(uint8_t, uint8_t)> registerCallback_vvnx = base::Bind([](uint8_t a, uint8_t b) { printf("hello %i %i\n",a, b);});
+base::Callback<void(uint8_t, uint8_t)> registerCallback_vvnx = base::Bind([](uint8_t a, uint8_t b) { printf("register_cb scanner_id=%i status=%i\n",a, b);});
+
+/* filt_type, avbl_space, action, status */                          
+base::Callback<void(uint8_t, uint8_t, uint8_t, uint8_t)> filterConfigCallback_vvnx = base::Bind([](uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{ 
+	printf("filterConfigCallback_vvnx %i %i %i %i\n",a, b, c, d);	
+	});
 
 
 int main(){
@@ -165,13 +172,22 @@ int main(){
     }**/
     
     BleScannerInterface* ble_iface = reinterpret_cast<BleScannerInterface*>(gatt_iface->scanner);
+    
+    //system/bt/types/
+    RawAddress esp32_1;
+	RawAddress::FromString("30:ae:a4:47:56:52", esp32_1);
+    
+    ble_iface->ScanFilterAddRemove(1, 0, 0, NULL, NULL, NULL, NULL, &esp32_1, NULL, std::vector<unsigned char>(), std::vector<unsigned char>(), filterConfigCallback_vvnx);
+    
     ble_iface->RegisterScanner(registerCallback_vvnx);
+    
+    
+    
+    
     ble_iface->Scan(true);
     
     
-    //ble_iface->RegisterScanner(BleScannerInterface::RegisterCallback);    
-    //BleScannerIfaceVvnx ble_iface = reinterpret_cast<BleScannerIfaceVvnx>(gatt_iface->scanner);
-    //ble_iface::RegisterCallback = reinterpret_cast<Callback>(ma_cb);
+
     
     
     
