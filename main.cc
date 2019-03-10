@@ -72,7 +72,7 @@ void scan_result_cb(uint16_t event_type, uint8_t addr_type,
 					 int8_t rssi, uint16_t periodic_adv_int,
 					 std::vector<uint8_t> adv_data) {
 		std::string addrstr = bda->ToString();				 	
-		printf("VVNX scan result cb bdaddr=%s \n", addrstr.c_str());		
+		printf("VVNX scan result cb bdaddr=%s addr_type=%i\n", addrstr.c_str(), addr_type);		
 }
 
 //hardware/ble_scanner.h
@@ -91,16 +91,42 @@ btgatt_callbacks_t bt_gatt_callbacks = {
     &btgatt_scanner_callbacks
 };
 
+//hardware/bt_common_types.h
+btgatt_filt_param_setup_t btgatt_filt_param_setup = {
+	0, //uint16_t feat_seln;
+    0, //uint16_t list_logic_type;
+    0, //uint8_t  filt_logic_type;
+    0, //uint8_t  rssi_high_thres;
+    0, //uint8_t  rssi_low_thres;
+    0, //uint8_t  dely_mode;
+    0, //uint16_t found_timeout;
+    0, //uint16_t lost_timeout;
+    0, //uint8_t  found_timeout_cnt;
+    0, //uint16_t  num_of_tracking_entries;
+};
 
 
-//un grand merci à https://www.chromium.org/chromium-os/packages/libchromeos
+
+/**les callbacks de BleScannerInterface: un grand moment de solitude!
+un grand merci à https://www.chromium.org/chromium-os/packages/libchromeos pour la syntaxe de ces callbacks à binder**/
+
+/* RegisterCallback --> scanner_id, status */
 base::Callback<void(uint8_t, uint8_t)> registerCallback_vvnx = base::Bind([](uint8_t a, uint8_t b) { printf("register_cb scanner_id=%i status=%i\n",a, b);});
 
-/* filt_type, avbl_space, action, status */                          
+/* EnableCallback --> action, status */
+base::Callback<void(uint8_t, uint8_t)> enableCallback_vvnx = base::Bind([](uint8_t a, uint8_t b) { printf("enable_cb action=%i status=%i\n",a, b);});
+
+/* FilterParamSetupCallback --> avbl_space, action_type, status */
+base::Callback<void(uint8_t, uint8_t, uint8_t)> filterParamSetupCallback_vvnx = base::Bind([](uint8_t a, uint8_t b, uint8_t c)
+{ 	printf("filterParamSetupCallback %i %i %i\n",a, b, c);	});
+
+
+/* FilterConfigCallback --> filt_type, avbl_space, action, status */                          
 base::Callback<void(uint8_t, uint8_t, uint8_t, uint8_t)> filterConfigCallback_vvnx = base::Bind([](uint8_t a, uint8_t b, uint8_t c, uint8_t d)
-{ 
-	printf("filterConfigCallback_vvnx %i %i %i %i\n",a, b, c, d);	
-	});
+{ 	printf("filterConfigCallback %i %i %i %i\n",a, b, c, d);	});
+
+
+
 
 
 int main(){
@@ -173,13 +199,37 @@ int main(){
     
     BleScannerInterface* ble_iface = reinterpret_cast<BleScannerInterface*>(gatt_iface->scanner);
     
-    //system/bt/types/
+    sleep(1); //dans le doute, tant que j'ai pas de filtres fonctionnels
+    
+    ble_iface->RegisterScanner(registerCallback_vvnx);    
+    
+    /****Filtres
+     * stack/include/btm_ble_api_types.h
+     * RawAddress --> system/bt/types/
+     * 
+     * 
+     * 
+     * 
+     **/
+     
+    //btgatt_filt_param_setup_vvnx = std::unique_ptr<btgatt_filt_param_setup>(new btgatt_filt_param_setup()); 
+    auto p = std::make_unique<btgatt_filt_param_setup_t>(btgatt_filt_param_setup); //https://shaharmike.com/cpp/unique-ptr/
+     
+	ble_iface->ScanFilterParamSetup(4, 1, 0, p, filterParamSetupCallback_vvnx);
+    
+    
     RawAddress esp32_1;
 	RawAddress::FromString("30:ae:a4:47:56:52", esp32_1);
+	RawAddress esp32_2;
+	RawAddress::FromString("30:ae:a4:47:57:aa", esp32_2);
     
-    ble_iface->ScanFilterAddRemove(1, 0, 0, NULL, NULL, NULL, NULL, &esp32_1, NULL, std::vector<unsigned char>(), std::vector<unsigned char>(), filterConfigCallback_vvnx);
+    std::vector<unsigned char> vector_vide;
+    ble_iface->ScanFilterAddRemove(1, 0, 1, 0, 0, NULL, NULL, &esp32_1, 0, vector_vide, vector_vide, filterConfigCallback_vvnx);    
+    ble_iface->ScanFilterAddRemove(1, 0, 2, 0, 0, NULL, NULL, &esp32_2, 0, vector_vide, vector_vide, filterConfigCallback_vvnx);
     
-    ble_iface->RegisterScanner(registerCallback_vvnx);
+    
+    
+    ble_iface->ScanFilterEnable(true, enableCallback_vvnx);
     
     
     
