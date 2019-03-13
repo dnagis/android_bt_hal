@@ -19,6 +19,8 @@ adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
 #include <unistd.h>
 
 #include "btcore/include/hal_util.h"
+#include "stack/include/btm_ble_api.h"
+#include "stack/include/btm_ble_api_types.h"
 
 
 #include <hardware/bluetooth.h>
@@ -72,7 +74,7 @@ void scan_result_cb(uint16_t event_type, uint8_t addr_type,
 					 int8_t rssi, uint16_t periodic_adv_int,
 					 std::vector<uint8_t> adv_data) {
 		std::string addrstr = bda->ToString();				 	
-		printf("VVNX scan result cb bdaddr=%s addr_type=%i\n", addrstr.c_str(), addr_type);		
+		printf("VVNX scan result cb bdaddr=%s addr_type=%i adv_sid=%i rssi=%i\n", addrstr.c_str(), addr_type, advertising_sid, rssi);		
 }
 
 //hardware/ble_scanner.h
@@ -90,21 +92,6 @@ btgatt_callbacks_t bt_gatt_callbacks = {
     nullptr,
     &btgatt_scanner_callbacks
 };
-
-//hardware/bt_common_types.h
-btgatt_filt_param_setup_t btgatt_filt_param_setup = {
-	0, //uint16_t feat_seln;
-    0, //uint16_t list_logic_type;
-    0, //uint8_t  filt_logic_type;
-    0, //uint8_t  rssi_high_thres;
-    0, //uint8_t  rssi_low_thres;
-    0, //uint8_t  dely_mode;
-    0, //uint16_t found_timeout;
-    0, //uint16_t lost_timeout;
-    0, //uint8_t  found_timeout_cnt;
-    0, //uint16_t  num_of_tracking_entries;
-};
-
 
 
 /**les callbacks de BleScannerInterface: un grand moment de solitude!
@@ -177,8 +164,6 @@ int main(){
 
     }
     
-    //sleep(5);
-    
     //btgatt_interface_t défini dans hardware/bt_gatt.h
     const btgatt_interface_t* gatt_iface = reinterpret_cast<const btgatt_interface_t*>(hal_iface_->get_profile_interface(BT_PROFILE_GATT_ID));  
       
@@ -199,44 +184,35 @@ int main(){
     
     BleScannerInterface* ble_iface = reinterpret_cast<BleScannerInterface*>(gatt_iface->scanner);
     
-    sleep(1); //dans le doute, tant que j'ai pas de filtres fonctionnels
+    //sleep(1); //dans le doute, tant que j'ai pas de filtres fonctionnels
     
     ble_iface->RegisterScanner(registerCallback_vvnx);    
     
     /****Filtres
-     * stack/include/btm_ble_api_types.h
-     * RawAddress --> system/bt/types/
+     * il faut modifier la librairie bluetooth.default.so -> dans system/bt/stack/btm/btm_ble_gap.cc à BTM_BleObserve
+     * le dernier argument passé à btm_send_hci_set_scan_params() doit être 0x01 (core specs p 1262) i.e. SP_ADV_WL chez android, et non pas BTM_BLE_DEFAULT_SFP
+     * et avant le lancement du scan il faut mettre les bdaddr dans la wl du controller
+  bool wl_status;
+  RawAddress esp32_1;
+  RawAddress::FromString("30:ae:a4:47:56:52", esp32_1);
+  RawAddress esp32_2;
+  RawAddress::FromString("30:ae:a4:47:57:aa", esp32_2);
+  wl_status = btm_update_dev_to_white_list(true, esp32_1);
+  wl_status = btm_update_dev_to_white_list(true, esp32_2);
+  BTM_TRACE_EVENT("%s status = %i", __func__, wl_status);
+  wl_status = btm_execute_wl_dev_operation();
+  BTIF_TRACE_EVENT("%s status 2=%i", __func__, wl_status);
      * 
-     * 
-     * 
-     * 
-     **/
-     
-    //btgatt_filt_param_setup_vvnx = std::unique_ptr<btgatt_filt_param_setup>(new btgatt_filt_param_setup()); 
-    auto p = std::make_unique<btgatt_filt_param_setup_t>(btgatt_filt_param_setup); //https://shaharmike.com/cpp/unique-ptr/
-     
-	ble_iface->ScanFilterParamSetup(4, 1, 0, p, filterParamSetupCallback_vvnx);
-    
-    
-    RawAddress esp32_1;
-	RawAddress::FromString("30:ae:a4:47:56:52", esp32_1);
-	RawAddress esp32_2;
-	RawAddress::FromString("30:ae:a4:47:57:aa", esp32_2);
-    
-    std::vector<unsigned char> vector_vide;
-    ble_iface->ScanFilterAddRemove(1, 0, 1, 0, 0, NULL, NULL, &esp32_1, 0, vector_vide, vector_vide, filterConfigCallback_vvnx);    
-    ble_iface->ScanFilterAddRemove(1, 0, 2, 0, 0, NULL, NULL, &esp32_2, 0, vector_vide, vector_vide, filterConfigCallback_vvnx);
-    
-    
-    
-    ble_iface->ScanFilterEnable(true, enableCallback_vvnx);
-    
-    
+     * make bluetooth.default
+     * adb push out/target/product/mido/symbols/system/lib64/hw/bluetooth.default.so /system/lib64/hw/
+     */ 
+
+
+
+
     
     
     ble_iface->Scan(true);
-    
-    
 
     
     
