@@ -4,7 +4,7 @@
  * build: mettre dans un dir dans system/bt que tu ajoutes à Android.bp->subdirs
  * 
  * 
- * /etc/bluetooth/bt_stack.conf gère le log, par élément/librairie (btif, stack, ... u name it)
+ * /etc/bluetooth/bt_stack.conf gère le log, par élément/librairie (btif, stack, ... u name it exemple: BTIF_TRACE_DEBUG)
  * 
 adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
  * 
@@ -164,7 +164,7 @@ int main(){
 
     }
     
-    //btgatt_interface_t défini dans hardware/bt_gatt.h
+    //btgatt_interface_t défini dans hardware/bt_gatt.h, et créé au runtime par libbtif dans system/bt/btif/src/btif_gatt.cc (donc au final dans la librairie bluetooth.default.do)
     const btgatt_interface_t* gatt_iface = reinterpret_cast<const btgatt_interface_t*>(hal_iface_->get_profile_interface(BT_PROFILE_GATT_ID));  
       
     status = gatt_iface->init(&bt_gatt_callbacks);
@@ -175,34 +175,40 @@ int main(){
     
 	sleep(1); //obligatoire (faut laisser le temps au hardware de s'allumerr?)
     
-    /** scan des devices standard. avec /etc/bluetooth/bt_stack.conf -> TRC_BTIF=5 j'ai du logcat touffu
+    /** scan des devices standard. 
     status = hal_iface_->start_discovery();
     if (status != BT_STATUS_SUCCESS) {
       LOG(INFO) << "Failed to start_discovery";
       return 1;
     }**/
     
+    //définition BleScannerInterface dans hardware/ble_scanner.h et le code pour agir et s'incruster dans les fonctions: system/bt/btif/src/btif_ble_scanner.cc
     BleScannerInterface* ble_iface = reinterpret_cast<BleScannerInterface*>(gatt_iface->scanner);
     
-    //sleep(1); //dans le doute, tant que j'ai pas de filtres fonctionnels
     
     ble_iface->RegisterScanner(registerCallback_vvnx);    
     
-    /****Filtres
-     * il faut modifier la librairie bluetooth.default.so -> dans system/bt/stack/btm/btm_ble_gap.cc à BTM_BleObserve
-     * le dernier argument passé à btm_send_hci_set_scan_params() doit être 0x01 (core specs p 1262) i.e. SP_ADV_WL chez android, et non pas BTM_BLE_DEFAULT_SFP
-     * et avant le lancement du scan il faut mettre les bdaddr dans la wl du controller
-  bool wl_status;
-  RawAddress esp32_1;
-  RawAddress::FromString("30:ae:a4:47:56:52", esp32_1);
-  RawAddress esp32_2;
-  RawAddress::FromString("30:ae:a4:47:57:aa", esp32_2);
-  wl_status = btm_update_dev_to_white_list(true, esp32_1);
-  wl_status = btm_update_dev_to_white_list(true, esp32_2);
-  BTM_TRACE_EVENT("%s status = %i", __func__, wl_status);
-  wl_status = btm_execute_wl_dev_operation();
-  BTIF_TRACE_EVENT("%s status 2=%i", __func__, wl_status);
+    /****####Filtres####
+     * pas d'autre solution que de modifier la librairie bluetooth.default.so, parce que google a décidé de modifier les scan params avant chaque lancement de scan.
+     * tout se passe dans system/bt/stack/btm/btm_ble_gap.cc à BTM_BleObserve 
+     * chemin pour arriver à BTM_BleObserve à partir de ble_iface->Scan(true):
+     * ble_iface->Scan(true); -> BTA_DmBleObserve (bta/dm/bta_dm_api.cc) crée une struct de type tBTA_DM_API_BLE_OBSERVE et l'envoie avec bta_sys_sendmsg()
+		tBTA_DM_MSG une struct pleine de typedefs -> tBTA_DM_API_BLE_OBSERVE ble_observe; -> bta/dm/bta_dm_act.cc ??? mais par quel mécanisme on y passe?? --> BTM_BleObserve dans btm_ble_gap.cc
      * 
+     * Pour avoir un scan avec du whitelisting, il faut que le dernier argument passé à btm_send_hci_set_scan_params() soit à 0x01 (bluetooth core specs p 1262) i.e. SP_ADV_WL chez android, et non pas BTM_BLE_DEFAULT_SFP
+     * avant le lancement du scan il faut mettre les bdaddr que tu veux whitelister dans la wl du controller
+bool wl_status;
+RawAddress esp32_1;
+RawAddress::FromString("30:ae:a4:47:56:52", esp32_1);
+RawAddress esp32_2;
+RawAddress::FromString("30:ae:a4:47:57:aa", esp32_2);
+wl_status = btm_update_dev_to_white_list(true, esp32_1);
+wl_status = btm_update_dev_to_white_list(true, esp32_2);
+BTM_TRACE_EVENT("%s status = %i", __func__, wl_status);
+wl_status = btm_execute_wl_dev_operation();
+BTIF_TRACE_EVENT("%s status 2=%i", __func__, wl_status);
+     * 
+     * ##rebuilder bluetooth.default.so
      * make bluetooth.default
      * adb push out/target/product/mido/symbols/system/lib64/hw/bluetooth.default.so /system/lib64/hw/
      */ 
@@ -222,3 +228,9 @@ int main(){
 	
 	return 0;
 }
+/**non utilisé finalement, mais pourra être utile quand tu voudras passer des valeurs d'ici vers la librairie, pour advertiser par exemple
+auto p = std::make_unique<btgatt_filt_param_setup_t>(btgatt_filt_param_setup); https://shaharmike.com/cpp/unique-ptr/	
+ble_iface->ScanFilterParamSetup(4, 1, 0, p, filterParamSetupCallback_vvnx);	
+std::vector<unsigned char> vector_vide;	
+ble_iface->ScanFilterAddRemove(1, 0, 1, 0, 0, NULL, NULL, &esp32_1, 0, vector_vide, vector_vide, filterConfigCallback_vvnx);  
+**/
