@@ -73,8 +73,9 @@ void scan_result_cb(uint16_t event_type, uint8_t addr_type,
 					 uint8_t advertising_sid, int8_t tx_power,
 					 int8_t rssi, uint16_t periodic_adv_int,
 					 std::vector<uint8_t> adv_data) {
-		std::string addrstr = bda->ToString();				 	
-		printf("VVNX scan result cb bdaddr=%s addr_type=%i adv_sid=%i rssi=%i\n", addrstr.c_str(), addr_type, advertising_sid, rssi);		
+		std::string addrstr = bda->ToString();
+		LOG(INFO) << "VVNX scan result cb bdaddr=" << addrstr.c_str() << ", rssi=-" << abs(rssi);				 	
+			
 }
 
 //hardware/ble_scanner.h
@@ -175,7 +176,7 @@ int main(){
     
 	sleep(1); //obligatoire (faut laisser le temps au hardware de s'allumerr?)
     
-    /** scan des devices standard. 
+    /** scan des devices standard, pas BLE. 
     status = hal_iface_->start_discovery();
     if (status != BT_STATUS_SUCCESS) {
       LOG(INFO) << "Failed to start_discovery";
@@ -188,7 +189,7 @@ int main(){
     
     ble_iface->RegisterScanner(registerCallback_vvnx);    
     
-    /****####Filtres####
+    /****####Réglages hardware: Scan params, Filtres, ...####
      * pas d'autre solution que de modifier la librairie bluetooth.default.so, parce que google a décidé de modifier les scan params avant chaque lancement de scan.
      * tout se passe dans system/bt/stack/btm/btm_ble_gap.cc à BTM_BleObserve 
      * chemin pour arriver à BTM_BleObserve à partir de ble_iface->Scan(true):
@@ -207,6 +208,9 @@ wl_status = btm_update_dev_to_white_list(true, esp32_2);
 BTM_TRACE_EVENT("%s status = %i", __func__, wl_status);
 wl_status = btm_execute_wl_dev_operation();
 BTIF_TRACE_EVENT("%s status 2=%i", __func__, wl_status);
+	 * 
+	 * Pour limiter la duration du scan: dans la fonction BTM_BleObserve set duration au début en secondes
+	 * Pour le filter duplicates BTM_BLE_DUPLICATE_ENABLE au lieu de DISABLE
      * 
      * ##rebuilder bluetooth.default.so
      * make bluetooth.default
