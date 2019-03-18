@@ -14,6 +14,7 @@ adb push ./out/target/product/mido/system/bin/bt_vvnx /system/bin
 
 #include <stdint.h>
 #include <iostream>
+#include <iomanip> //pour avoir du print de float en cout
 #include <string>
 #include <stdio.h>
 #include <unistd.h>
@@ -74,8 +75,16 @@ void scan_result_cb(uint16_t event_type, uint8_t addr_type,
 					 int8_t rssi, uint16_t periodic_adv_int,
 					 std::vector<uint8_t> adv_data) {
 		std::string addrstr = bda->ToString();
-		LOG(INFO) << "VVNX scan result cb bdaddr=" << addrstr.c_str() << ", rssi=-" << abs(rssi);				 	
-			
+		//récupération des données du capteur bmx280 dans l'adv_data (github: esp_bleadv_bmx280)
+		int temp_intpart=(int) adv_data[5];
+		float temp_decpart=(float) adv_data[6];
+		float temp = temp_intpart + (temp_decpart / 100);
+		int hum_intpart=(int) adv_data[7];
+		float hum_decpart=(float) adv_data[8];
+		float hum = hum_intpart + (hum_decpart / 100);
+		std::cout << std::setprecision(2) << std::fixed; //pour avoir du float en cout (le printf c++ avec les "<<") il faut ça et #include <iomanip>
+		LOG(INFO) << "scan cb bdaddr=" << addrstr.c_str() << ", rssi=-" << abs(rssi) << ", temp=" << temp << " ,hum=" << hum; 			 	
+
 }
 
 //hardware/ble_scanner.h
